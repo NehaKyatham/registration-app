@@ -1,150 +1,103 @@
 pipeline {
     agent any
+
     tools {
         maven 'maven'
     }
+
     environment {
-        SCANNER_HOME = tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonarqube-scanner'
         APP_NAME = "java-registration-app"
         RELEASE = "1.0.0"
-        DOCKER_USER = "ashfaque9x"
-        DOCKER_PASS = 'dockerhub'
-        IMAGE_NAME = "${DOCKER_USER}" + "/" + "${APP_NAME}"
+        DOCKER_USER = "nehakyatham"
+        DOCKER_PASS = "dockerhub-token"
+        IMAGE_NAME = "${DOCKER_USER}/${APP_NAME}"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
-	
     }
+
     stages {
-         stage('clean workspace') {
+
+        stage('Clean Workspace') {
             steps {
                 cleanWs()
             }
-         }
-         stage('Checkout from Git') {
+        }
+
+        stage('Checkout from Git') {
             steps {
-                git branch: 'main', url: 'https://ashfaque-9x@bitbucket.org/vtechbox/registration-app.git'
+                git branch: 'main', url: 'https://github.com/NehaKyatham/registration-app.git'
             }
-         }
-         stage ('Build Package')  {
-	         steps {
-                dir('webapp'){
-                sh "mvn package"
-                }
-             }
-         }
-         stage ('SonarQube Analysis') {
+        }
+
+        stage('Build Package') {
             steps {
-              withSonarQubeEnv('SonarQube-Server') {
-                dir('webapp'){
-                sh 'mvn -U clean install sonar:sonar'
+                dir('webapp') {
+                    sh "mvn package"
                 }
-              }  
             }
-         }
-         stage("Quality Gate") {
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube-servers') {
+                    dir('webapp') {
+                        sh 'mvn -U clean install sonar:sonar'
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
             steps {
                 script {
                     waitForQualityGate abortPipeline: false, credentialsId: 'SonarQube-Token'
                 }
             }
-         }
-         stage ('Artifactory configuration') {
+        }
+
+        stage('Artifactory configuration') {
             steps {
-                rtServer (
+                rtServer(
                     id: "jfrog-server",
-                    url: "http://13.201.137.77:8082/artifactory",
+                    url: "http://3.9.165.227:8082/artifactory",
                     credentialsId: "jfrog"
                 )
 
-                rtMavenDeployer (
+                rtMavenDeployer(
                     id: "MAVEN_DEPLOYER",
                     serverId: "jfrog-server",
                     releaseRepo: "libs-release-local",
                     snapshotRepo: "libs-snapshot-local"
                 )
 
-                rtMavenResolver (
+                rtMavenResolver(
                     id: "MAVEN_RESOLVER",
                     serverId: "jfrog-server",
                     releaseRepo: "libs-release",
                     snapshotRepo: "libs-snapshot"
                 )
             }
-         }
-         stage ('Deploy Artifacts') {
+        }
+
+        stage('Deploy Artifacts') {
             steps {
-                rtMavenRun (
-                    tool: "maven", 
+                rtMavenRun(
+                    tool: "maven",
                     pom: 'webapp/pom.xml',
                     goals: 'clean install',
                     deployerId: "MAVEN_DEPLOYER",
                     resolverId: "MAVEN_RESOLVER"
                 )
             }
-         }
-         stage ('Publish build info') {
+        }
+
+        stage('Publish build info') {
             steps {
-                rtPublishBuildInfo (
+                rtPublishBuildInfo(
                     serverId: "jfrog-server"
-             )
+                )
             }
-         }
-         stage('TRIVY FS SCAN') {
-            steps {
-                sh "trivy fs . > trivyfs.txt"
-            }
-         }
-         stage("Build & Push Docker Image") {
-             steps {
-                 script {
-                     docker.withRegistry('',DOCKER_PASS) {
-                         docker_image = docker.build "${IMAGE_NAME}"
-                     }
-                     docker.withRegistry('',DOCKER_PASS) {
-                         docker_image.push("${IMAGE_TAG}")
-                         docker_image.push('latest')
-                     }
-                 }
-             }
-         }
-         stage("Trivy Image Scan") {
-             steps {
-                 script {
-	                  sh ('docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ashfaque9x/java-registration-app:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table > trivyimage.txt')
-                 }
-             }
-         }
-         stage ('Cleanup Artifacts') {
-             steps {
-                 script {
-                      sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
-                      sh "docker rmi ${IMAGE_NAME}:latest"
-                 }
-             }
-         }
-         stage('Deploy to Kubernets'){
-             steps{
-                 script{
-                      dir('Kubernetes') {
-                         kubeconfig(credentialsId: 'kubernetes', serverUrl: '') {
-                         sh 'kubectl apply -f deployment.yml'
-                         sh 'kubectl apply -f service.yml'
-                         sh 'kubectl rollout restart deployment.apps/registerapp-deployment'
-                         }   
-                      }
-                 }
-             }
-         }
-        
+        }
     }
-    post {
-      always {
-        emailext attachLog: true,
-            subject: "'${currentBuild.result}'",
-            body: "Project: ${env.JOB_NAME}<br/>" +
-                "Build Number: ${env.BUILD_NUMBER}<br/>" +
-                "URL: ${env.BUILD_URL}<br/>",
-            to: 'ashfaque.s510@gmail.com',                              
-            attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
-      }
-    }
-}    
+}
+
