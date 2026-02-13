@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        SCANNER_HOME = tool 'sonarqube-scanner'
+        SCANNER_HOME = tool 'SonarQube-Scanner'
         APP_NAME = "java-registration-app"
         RELEASE = "1.0.0"
         DOCKER_USER = "nehakyatham"
@@ -39,7 +39,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube-servers') {
+                withSonarQubeEnv('SonarQube-Servers') {
                     dir('webapp') {
                         sh 'mvn -U clean install sonar:sonar'
                     }
