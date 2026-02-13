@@ -124,7 +124,7 @@ pipeline {
                 script {
                     sh """
                         docker run -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy image nehakyatham/java-registration-app:latest \
+                        aquasec/trivy image ${IMAGE_NAME}:latest \
                         --no-progress --scanners vuln --exit-code 0 \
                         --severity HIGH,CRITICAL --format table > trivyimage.txt
                     """
@@ -139,6 +139,20 @@ pipeline {
                     sh "docker rmi ${IMAGE_NAME}:latest || true"
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            emailext(
+                attachLog: true,
+                subject: "'${currentBuild.result}'",
+                body: "Project: ${env.JOB_NAME}<br/>" +
+                      "Build Number: ${env.BUILD_NUMBER}<br/>" +
+                      "URL: ${env.BUILD_URL}<br/>",
+                to: 'nehakyatham@gmail.com',
+                attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
+            )
         }
     }
 }
