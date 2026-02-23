@@ -59,7 +59,7 @@ pipeline {
             steps {
                 rtServer(
                     id: "jfrog-server",
-                    url: "http://18.171.60.73:8082/artifactory",
+                    url: "http://18.171.171.155:8082/artifactory",
                     credentialsId: "jfrog"
                 )
 
@@ -124,7 +124,7 @@ pipeline {
                 script {
                     sh """
                         docker run -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy image ${IMAGE_NAME}:latest \
+                        aquasec/trivy image nehakyatham/java-registration-app:latest \
                         --no-progress --scanners vuln --exit-code 0 \
                         --severity HIGH,CRITICAL --format table > trivyimage.txt
                     """
@@ -140,34 +140,7 @@ pipeline {
                 }
             }
         }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    dir('Kubernetes') {
-                        kubeconfig(credentialsId: 'kubernetes', serverUrl: '') {
-                            sh 'kubectl apply -f deployment.yml'
-                            sh 'kubectl apply -f service.yml'
-                            sh 'kubectl rollout restart deployment.apps/registerapp-deployment'
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            emailext(
-                attachLog: true,
-                subject: "'${currentBuild.result}'",
-                body: "Project: ${env.JOB_NAME}<br/>" +
-                      "Build Number: ${env.BUILD_NUMBER}<br/>" +
-                      "URL: ${env.BUILD_URL}<br/>",
-                to: 'nehakyatham@gmail.com',
-                attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
-            )
-        }
     }
 }
+
 
