@@ -79,7 +79,7 @@ pipeline {
             }
         }
 
-        stage('Deploy Artifacts') {
+        stage('Deploy Artifacts to JFrog') {
             steps {
                 rtMavenRun(
                     tool: "maven",
@@ -93,13 +93,11 @@ pipeline {
 
         stage('Publish build info') {
             steps {
-                rtPublishBuildInfo(
-                    serverId: "jfrog-server"
-                )
+                rtPublishBuildInfo(serverId: "jfrog-server")
             }
         }
 
-        stage('TRIVY FS SCAN') {
+        stage('Trivy FS Scan') {
             steps {
                 sh "trivy fs . > trivyfs.txt"
             }
@@ -124,10 +122,24 @@ pipeline {
                 script {
                     sh """
                         docker run -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy image nehakyatham/java-registration-app:latest \
+                        aquasec/trivy image ${IMAGE_NAME}:latest \
                         --no-progress --scanners vuln --exit-code 0 \
                         --severity HIGH,CRITICAL --format table > trivyimage.txt
                     """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    dir('Kubernetes') {
+                        withKubeConfig(credentialsId: 'kubernetes') {
+                            sh 'kubectl apply -f deployment.yml'
+                            sh 'kubectl apply -f service.yml'
+                            sh 'kubectl rollout restart deployment.apps/registerapp-deployment'
+                        }
+                    }
                 }
             }
         }
