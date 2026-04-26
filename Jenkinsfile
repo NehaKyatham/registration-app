@@ -59,7 +59,7 @@ pipeline {
             steps {
                 rtServer(
                     id: "jfrog-server",
-                    url: "http://18.171.171.155:8082/artifactory",
+                    url: "http://:8082/artifactory",
                     credentialsId: "jfrog"
                 )
 
@@ -126,20 +126,6 @@ pipeline {
                         --no-progress --scanners vuln --exit-code 0 \
                         --severity HIGH,CRITICAL --format table > trivyimage.txt
                     """
-                }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    dir('Kubernetes') {
-                        withKubeConfig(credentialsId: 'kubernetes') {
-                            sh 'kubectl apply -f deployment.yml'
-                            sh 'kubectl apply -f service.yml'
-                            sh 'kubectl rollout restart deployment.apps/registerapp-deployment'
-                        }
-                    }
                 }
             }
         }
